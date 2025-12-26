@@ -7,20 +7,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     ffmpeg \
-    ca-certificates git \
+    ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# Install uv
 RUN pip3 install --no-cache-dir uv
 
+# Copy project metadata first
 COPY pyproject.toml /app/pyproject.toml
 
-# Install dependencies (system-wide in container)
-RUN uv pip install --system --no-cache-dir -r <(python3 -c "import tomllib;print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))")
+# Install deps
+RUN uv pip install --system --no-cache-dir \
+  -r <(python3 -c "import tomllib;print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))")
 
-COPY app.py /app/app.py
+# Copy source
+COPY stt_engine /app/stt_engine
+COPY src/standelone /app/src/standelone
 
 EXPOSE 7860
-CMD ["python3", "app.py"]
+CMD ["python3", "-m", "src.standelone.gradio_app"]
