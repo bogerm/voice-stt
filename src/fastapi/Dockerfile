@@ -12,29 +12,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install uv via Astral script and add to PATH
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Create virtual environment for dependencies
-RUN python3 -m venv /opt/venv
+RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Make imports robust
 ENV PYTHONPATH="/app:${PYTHONPATH}"
 
-# Copy metadata first (better caching)
 COPY pyproject.toml /app/pyproject.toml
 
-# Install deps into venv
 RUN python3 -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print('\n'.join(d['project']['dependencies']))" \
     > /tmp/requirements.txt \
  && uv pip install --no-cache-dir -r /tmp/requirements.txt \
  && rm -f /tmp/requirements.txt
 
-# Copy code
 COPY stt_engine /app/stt_engine
-COPY src/standelone /app/src/standelone
+COPY src/fastapi /app/src/fastapi
 
-EXPOSE 7860
-CMD ["python3", "/app/src/standelone/gradio_app.py"]
+EXPOSE 8000
+CMD ["uvicorn", "src.fastapi.api_server:app", "--host", "0.0.0.0", "--port", "8000"]

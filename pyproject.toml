@@ -7,10 +7,13 @@ name = "voice-stt"
 version = "0.1.0"
 description = "Local Whisper STT with Gradio (GPU-friendly)"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.127.0",
     "faster-whisper>=1.2.1",
     "gradio>=6.2.0",
+    "python-multipart>=0.0.21",
+    "uvicorn[standard]>=0.40.0",
 ]
 
 [project.scripts]
@@ -18,9 +21,10 @@ app = "app:main"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.0.2",
 ]
 
 
 [tool.setuptools]
-packages = ["stt_engine"]
+packages = ["stt_engine", "src"]
