@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/fastapi/Dockerfile
+    image: voice-stt-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    # GPU access (Docker + NVIDIA Container Toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+
+  client:
+    build:
+      context: .
+      dockerfile: src/client-gradio/Dockerfile
+    image: voice-stt-client:latest
+    ports:
+      - "7860:7860"
+    environment:
+      - FASTAPI_BASE_URL=http://api:8000
+    depends_on:
+      - api

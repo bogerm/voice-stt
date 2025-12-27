@@ -1,15 +1,52 @@
 # Voice STT - Local Whisper Speech-to-Text
 
-A local speech-to-text application powered by OpenAI's Whisper model with a Gradio web interface. Features GPU acceleration support (CUDA) for faster transcription.
+A fully local, GPU-accelerated speech-to-text system built on OpenAI Whisper (faster-whisper), designed as modular services:
+- reusable STT engine package
+- FastAPI backend (REST, streaming-ready)
+- Gradio UI (standalone or client-to-API)
+- Docker-first, CUDA-enabled, Kubernetes-friendly
+
+## Architecture Overview
+
+```graphql
+voice-stt/
+├── stt_engine/              # Core Whisper STT engine (lazy-loaded, reusable)
+│   ├── __init__.py
+│   └── stt_engine.py
+│
+├── src/
+│   ├── standelone/          # Standalone Gradio app (local STT)
+│   │   ├── gradio_app.py
+│   │   └── Dockerfile
+│   │
+│   ├── fastapi/             # FastAPI STT server (REST / WS)
+│   │   ├── api_server.py
+│   │   └── Dockerfile
+│   │
+│   └── client-gradio/       # Gradio client → FastAPI server
+│       ├── client_app.py
+│       └── Dockerfile
+│
+├── tests/                   # Unit tests (engine + API, mocked)
+│   ├── test_stt_engine.py
+│   └── test_fastapi_api.py
+│
+├── docker-compose.yml       # API + Client orchestration
+└── pyproject.toml
+```
 
 ## Features
 
-- 🎤 Real-time speech-to-text transcription using Whisper
-- ⚡ GPU acceleration with CUDA support (NVIDIA GPUs)
-- 🎯 Faster transcription with faster-whisper implementation
-- 🌐 Web-based interface built with Gradio
-- 🔒 Runs locally - no external API calls required
-- 📦 Docker support for easy deployment
+- 🎤 Local Whisper STT (no external APIs)
+- ⚡ GPU acceleration (CUDA / NVIDIA)
+- 🧠 Lazy model loading (fast startup, cached models)
+- 🌐 FastAPI backend (clean REST interface)
+- 🎛️ Gradio UI
+- standalone (all-in-one)
+- or client → API architecture
+- 📦 Docker & Docker Compose
+- 🧪 Unit-tested (engine + API with mocks)
+- 🔧 Ubuntu 24.04 + PEP-668 safe Python setup
 
 ## Requirements
 
@@ -17,185 +54,158 @@ A local speech-to-text application powered by OpenAI's Whisper model with a Grad
 - Python 3.13+
 - FFmpeg
 - NVIDIA GPU with CUDA support (optional, for GPU acceleration)
-- pip or uv package manager
+- uv (recommended)
 
 ### Docker Setup
 - Docker installed
 - Docker Desktop (for Windows/Mac) or Docker Engine (for Linux)
 - NVIDIA Docker runtime (if using GPU with Docker)
 
-## Installation & Setup
+## Installation (Local Dev)
 
-### Option 1: Local Installation
-
-1. **Clone or navigate to the project directory:**
-   ```bash
-   cd voice-stt
-   ```
-
-2. **Create a virtual environment:**
-   ```bash
-   python -m venv .venv
-   ```
-
-3. **Activate the virtual environment:**
-   - Windows:
-     ```bash
-     .venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```bash
-     source .venv/bin/activate
-     ```
-
-4. **Install dependencies:**
-   ```bash
-   pip install -e .
-   ```
-
-5. **Run the application:**
-   ```bash
-   python app.py
-   ```
-
-   The web interface will be available at `http://localhost:7860`
-
-### Option 2: Docker Installation
-
-#### Prerequisites
-For GPU support on Docker, ensure you have:
-- NVIDIA GPU drivers installed on your host machine
-- Docker with NVIDIA runtime support
-
-#### Build the Docker Image
-
-1. **Build the image:**
-   ```bash
-   docker build -t voice-stt:latest .
-   ```
-
-#### Run the Docker Container
-
-**For CPU-only (no GPU):**
 ```bash
-docker run -p 7860:7860 voice-stt:latest
+git clone https://github.com/bogerm/voice-stt
+cd voice-stt
 ```
 
-**For GPU support (NVIDIA GPUs):**
+### Create environment (recommended)
+
 ```bash
-docker run --gpus all -p 7860:7860 voice-stt:latest
+uv venv
+source .venv/bin/activate
 ```
 
-Or with specific GPU:
+### Install dependencies
+
 ```bash
-docker run --gpus '"device=0"' -p 7860:7860 voice-stt:latest
+uv pip install -e . --group dev
 ```
 
-**With volume mounting for persistent model cache:**
+### Run tests
 ```bash
-docker run --gpus all -p 7860:7860 -v whisper_cache:/root/.cache/huggingface voice-stt:latest
+uv run pytest
 ```
 
-#### Access the Application
+### Option 1: Standalone Gradio App (all-in-one)
 
-Once the container is running, open your browser and navigate to:
-```
-http://localhost:7860
-```
+Runs Whisper + UI in a single process.
 
-## Docker Common Commands
-
-### Stop a running container:
+### Run locally
 ```bash
-docker stop <container_id>
+uv run python src/standelone/gradio_app.py
 ```
 
-### Remove a container:
+### Docker
 ```bash
-docker rm <container_id>
+docker build -f src/standelone/Dockerfile -t voice-stt-standalone .
+docker run --rm -it --gpus all -p 7860:7860 voice-stt-standalone
 ```
 
-### View running containers:
+## Option 2: FastAPI Server (STT backend)
+
+Provides a REST API for speech-to-text.
+
+### Endpoints
+
+- GET /health
+- POST /v1/transcribe (audio upload)
+
+### Run with Docker
 ```bash
-docker ps
+docker build -f src/fastapi/Dockerfile -t voice-stt-api .
+docker run --rm -it --gpus all -p 8000:8000 voice-stt-api
 ```
 
-### View all containers (including stopped):
+Docs:
+- 👉 http://localhost:8000/docs
+
+
+## Option 3: Gradio Client → FastAPI Server (recommended)
+
+Decoupled UI + backend, production-friendly.
+
+### Run with Docker Compose
 ```bash
-docker ps -a
+docker compose up --build
 ```
 
-### View container logs:
+
+Services:
+- FastAPI → http://localhost:8000
+- Gradio UI → http://localhost:7860
+
+The Gradio client sends audio to the FastAPI server over HTTP.
+
+---
+
+## Supported Whisper Models
+
+| Model     | Speed | Accuracy | VRAM |
+|----------|---------|----------|------|
+| tiny     | 🚀🚀🚀 | ⭐        | very low |
+| base     | 🚀🚀   | ⭐⭐       | low |
+| small    | 🚀     | ⭐⭐⭐     | moderate |
+| medium   | 🐢     | ⭐⭐⭐⭐    | high |
+| large-v3 | 🐢🐢   | ⭐⭐⭐⭐⭐ | very high |
+
+---
+
+## Environment Variables
+
+### FastAPI
+- `PYTHONUNBUFFERED=1`
+
+### Gradio Client
+- `FASTAPI_BASE_URL`  
+  (default: `http://api:8000` in docker-compose)
+
+---
+
+## Docker & GPU Notes
+
+Verify GPU access:
+
 ```bash
-docker logs <container_id>
+docker run --rm --gpus all nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04 nvidia-smi
 ```
 
-### Remove the image:
+If GPU is not detected:
+- Ensure NVIDIA drivers are installed on host
+- Ensure NVIDIA Container Toolkit is installed
+
+---
+
+## Testing Strategy
+
+- **stt_engine tests**
+  - no Whisper download
+  - lazy init behavior
+  - edge cases
+- **FastAPI tests**
+  - fully mocked engine
+  - no GPU / no audio decoding
+  - validates HTTP contract
+
+Run all tests:
+
 ```bash
-docker rmi voice-stt:latest
+uv run pytest
 ```
 
-## Configuration
+---
 
-The application uses the following environment variables (optional):
-- `WHISPER_CACHE`: Custom cache directory for downloaded Whisper models (default: `./models`)
-
-### Setting environment variables with Docker:
-```bash
-docker run --gpus all -p 7860:7860 -e WHISPER_CACHE=/models voice-stt:latest
-```
-
-## Usage
-
-1. Open the Gradio interface in your browser (http://localhost:7860)
-2. Upload an audio file or record audio directly in the interface
-3. Select the Whisper model size (tiny, base, small, medium, large)
-4. Click "Transcribe" to start the speech-to-text process
-5. View the transcribed text in the output
-
-## Supported Model Sizes
-
-- **tiny**: Fastest, least accurate (~39M parameters)
-- **base**: Balanced (~74M parameters)
-- **small**: Better accuracy (~244M parameters)
-- **medium**: High accuracy (~769M parameters)
-- **large**: Best accuracy (~1550M parameters)
-
-## Dependencies
-
-- **faster-whisper** (>=1.2.1): Optimized Whisper implementation
-- **gradio** (>=6.2.0): Web interface framework
-
-## Performance Notes
-
-- GPU acceleration significantly speeds up transcription
-- First run downloads the selected model (1-3GB depending on model size)
-- Subsequent runs use cached models
-- Volume mounts help preserve models between container runs
-
-## Troubleshooting
-
-### Docker GPU not detected
-- Ensure NVIDIA Docker runtime is installed: `docker run --rm --gpus all nvidia/cuda:12.8.2-cudnn8-runtime-ubuntu22.04 nvidia-smi`
-- Check NVIDIA Docker setup on [NVIDIA's documentation](https://github.com/NVIDIA/nvidia-docker)
-
-### Out of memory errors
-- Use a smaller model (tiny, base, or small)
-- Increase Docker memory allocation
-- Use `int8_float16` compute type in the code for reduced VRAM usage
-
-### Models taking long to download
-- Models are downloaded on first use
-- Use volume mounts to persist cached models: `-v whisper_cache:/root/.cache/huggingface`
 
 ## License
 
-This project uses OpenAI's Whisper model. Refer to the [Whisper license](https://github.com/openai/whisper/blob/main/LICENSE) for usage terms.
+Uses OpenAI Whisper models.  
+See: https://github.com/openai/whisper/blob/main/LICENSE
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Roadmap
 
-## Support
-
-For issues or questions, please open an issue on the project repository.
+- WebSocket live captions
+- Streaming partial transcripts
+- Kubernetes GPU manifests
+- API authentication & rate limiting
+- Model pre-warming & batching
